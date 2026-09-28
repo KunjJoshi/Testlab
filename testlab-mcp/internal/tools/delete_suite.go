@@ -35,7 +35,7 @@ func (h *deleteSuiteHandler) Handle(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	resp, err := h.client.Delete(fmt.Sprintf("/suites/%d", suiteID), nil)
+	resp, err := h.client.Delete(ctx, fmt.Sprintf("/suites/%d", suiteID), nil)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

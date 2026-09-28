@@ -32,6 +32,20 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	issuerURL := os.Getenv("ISSUER_URL")
+	if issuerURL == "" {
+		issuerURL = "http://localhost:8080"
+		log.Println("ISSUER_URL not set, defaulting to http://localhost:8080")
+	}
+
+	cimdCache := auth.NewCIMDCache()
+	authorizeHandler := &handlers.AuthorizeHandler{DB: pool, CIMDCache: cimdCache}
+
+	discoveryHandler := &handlers.DiscoveryHandler{IssuerURL: issuerURL}
+	tokenHandler := &handlers.TokenHandler{DB: pool}
+	mux.HandleFunc("POST /token", tokenHandler.Token)
+	mux.HandleFunc("GET /.well-known/oauth-authorization-server", discoveryHandler.GetAuthServerMetadata)
+	mux.HandleFunc("GET /authorize", authorizeHandler.Authorize)
 	// -- public: no auth wrapper --
 	authHandler := &handlers.AuthHandler{DB: pool}
 	mux.HandleFunc("GET /auth/github/login", authHandler.GithubLogin)

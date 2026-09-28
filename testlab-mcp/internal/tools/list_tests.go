@@ -35,7 +35,7 @@ func (h *listTestRowsHandler) Handle(ctx context.Context, req mcp.CallToolReques
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	resp, err := h.client.Get(fmt.Sprintf("/tests/%d", suiteID))
+	resp, err := h.client.Get(ctx, fmt.Sprintf("/tests/%d", suiteID))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

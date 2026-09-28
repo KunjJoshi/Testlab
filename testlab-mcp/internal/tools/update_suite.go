@@ -46,7 +46,7 @@ func (h *updateSuiteHandler) Handle(ctx context.Context, req mcp.CallToolRequest
 		body["suite_description"] = v
 	}
 
-	resp, err := h.client.Patch(fmt.Sprintf("/suites/%d", suiteID), body)
+	resp, err := h.client.Patch(ctx, fmt.Sprintf("/suites/%d", suiteID), body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

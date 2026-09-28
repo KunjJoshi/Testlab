@@ -35,7 +35,7 @@ func (h *createSuiteHandler) Handle(ctx context.Context, req mcp.CallToolRequest
 	}
 
 	desc := req.GetString("suite_description", "")
-	resp, err := h.client.Post("/suites", map[string]any{
+	resp, err := h.client.Post(ctx, "/suites", map[string]any{
 		"suite_name":        name,
 		"suite_description": desc,
 	})
