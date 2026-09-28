@@ -50,7 +50,7 @@ func (h *provideAccessHandler) Handle(ctx context.Context, req mcp.CallToolReque
 		"access_scope": accessScope,
 	}
 
-	resp, err := h.client.Post("/access/provide", body)
+	resp, err := h.client.Post(ctx, "/access/provide", body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -97,7 +97,7 @@ func (h *updateAccessHandler) Handle(ctx context.Context, req mcp.CallToolReques
 		"access_scope": accessScope,
 	}
 
-	resp, err := h.client.Patch("/access/update-access", body)
+	resp, err := h.client.Patch(ctx, "/access/update-access", body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -138,7 +138,7 @@ func (h *removeAccessHandler) Handle(ctx context.Context, req mcp.CallToolReques
 		"suite_id": suiteID,
 	}
 
-	resp, err := h.client.Delete("/access/remove-user", body)
+	resp, err := h.client.Delete(ctx, "/access/remove-user", body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

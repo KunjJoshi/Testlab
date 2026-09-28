@@ -45,7 +45,7 @@ func (h *updateTestRowHandler) Handle(ctx context.Context, req mcp.CallToolReque
 		"test_name", "test_description", "execution_steps", "expected_output",
 		"expected_response_status", "status")
 
-	resp, err := h.client.Patch(fmt.Sprintf("/tests/%d", rowID), body)
+	resp, err := h.client.Patch(ctx, fmt.Sprintf("/tests/%d", rowID), body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

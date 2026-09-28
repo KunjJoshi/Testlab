@@ -35,7 +35,7 @@ func (h *listUsersWithAccessHandler) Handle(ctx context.Context, req mcp.CallToo
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	resp, err := h.client.Get(fmt.Sprintf("/access/list-users/%d", suiteID))
+	resp, err := h.client.Get(ctx, fmt.Sprintf("/access/list-users/%d", suiteID))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

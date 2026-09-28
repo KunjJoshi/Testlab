@@ -34,7 +34,7 @@ func (h *getSuiteByIDHandler) Handle(ctx context.Context, req mcp.CallToolReques
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	resp, err := h.client.Get(fmt.Sprintf("/suites/%d", suiteID))
+	resp, err := h.client.Get(ctx, fmt.Sprintf("/suites/%d", suiteID))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -59,7 +59,7 @@ func newListAllSuitesHandler(c *client.Client) *listAllSuitesHandler {
 }
 
 func (h *listAllSuitesHandler) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	resp, err := h.client.Get("/suites")
+	resp, err := h.client.Get(ctx, "/suites")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

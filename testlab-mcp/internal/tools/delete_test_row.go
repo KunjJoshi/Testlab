@@ -35,7 +35,7 @@ func (h *deleteTestRowHandler) Handle(ctx context.Context, req mcp.CallToolReque
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	resp, err := h.client.Delete(fmt.Sprintf("/tests/%d", rowID), nil)
+	resp, err := h.client.Delete(ctx, fmt.Sprintf("/tests/%d", rowID), nil)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

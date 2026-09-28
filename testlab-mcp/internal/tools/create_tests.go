@@ -63,7 +63,7 @@ func (h *createTestRowHandler) Handle(ctx context.Context, req mcp.CallToolReque
 		"expected_response_status": expectedStatus,
 	}
 
-	resp, err := h.client.Post("/tests/write-test", body)
+	resp, err := h.client.Post(ctx, "/tests/write-test", body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -113,7 +113,7 @@ func (h *bulkImportTestRowsHandler) Handle(ctx context.Context, req mcp.CallTool
 		"test_rows":       testRows,
 	}
 
-	resp, err := h.client.Post("/tests/import-bulk", body)
+	resp, err := h.client.Post(ctx, "/tests/import-bulk", body)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

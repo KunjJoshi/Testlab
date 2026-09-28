@@ -2,7 +2,11 @@ module github.com/KunjJoshi/testlab-mcp
 
 go 1.25.5
 
-require github.com/mark3labs/mcp-go v1.1.1
+require (
+	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/joho/godotenv v1.5.1
+	github.com/mark3labs/mcp-go v1.1.1
+)
 
 require (
 	github.com/google/jsonschema-go v0.4.2 // indirect
