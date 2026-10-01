@@ -1,0 +1,133 @@
+@import 'tailwindcss';
+
+@import '@fontsource-variable/fraunces';
+@import '@fontsource-variable/inter-tight';
+@import '@fontsource-variable/jetbrains-mono';
+
+/*
+ * Testlab — "field notebook" theme.
+ * Warm paper ground, ink-dark type, a serif display face for names and
+ * headings, and a mono face for anything machine-ish (IDs, HTTP codes).
+ */
+@theme {
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-sans: 'Inter Tight Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-paper: #f5efe3;
+  --color-paper-deep: #ece4d4;
+  --color-card: #fbf8f1;
+  --color-ink: #1f1b16;
+  --color-ink-soft: #4a4339;
+  --color-ink-mute: #857b6c;
+  --color-rule: #dcd1bd;
+  --color-rule-soft: #e8dfcf;
+  --color-accent: #c4532f;
+  --color-accent-deep: #9e3e1f;
+  --color-danger: #b4322b;
+  --color-danger-soft: #f6dcd6;
+
+  /* Status chips */
+  --color-untested: #6f6a62;
+  --color-untested-soft: #e7e3dc;
+  --color-progress: #8a6300;
+  --color-progress-soft: #f8e7a8;
+  --color-passed: #2f6b33;
+  --color-passed-soft: #d5ebcf;
+  --color-failed: #a8291f;
+  --color-failed-soft: #f6d3cd;
+
+  --shadow-card: 0 1px 0 rgb(31 27 22 / 0.04), 0 8px 24px -12px rgb(31 27 22 / 0.18);
+  --shadow-lift: 0 2px 0 rgb(31 27 22 / 0.05), 0 22px 40px -18px rgb(31 27 22 / 0.35);
+  --shadow-pop: 0 18px 50px -12px rgb(31 27 22 / 0.35), 0 0 0 1px rgb(31 27 22 / 0.06);
+
+  --animate-flash: flash 1.6s ease-out;
+  --animate-rise: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade: fade 0.2s ease-out both;
+
+  @keyframes flash {
+    0% {
+      background-color: var(--suite-soft, #f8e7a8);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * Per-suite colour. A wrapper sets --suite / --suite-soft / --suite-ink and
+ * everything inside can use bg-suite, text-suite-ink, etc.
+ */
+@theme inline {
+  --color-suite: var(--suite, #1f1b16);
+  --color-suite-soft: var(--suite-soft, #ece4d4);
+  --color-suite-tint: var(--suite-tint, #f5efe3);
+  --color-suite-ink: var(--suite-ink, #1f1b16);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink;
+    font-feature-settings: 'ss01', 'cv11';
+    /* Faint ruled-paper texture */
+    background-image: radial-gradient(circle at 1px 1px, rgb(31 27 22 / 0.05) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  ::selection {
+    background: var(--suite-soft, #f3c9b6);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--suite, var(--color-accent));
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+}
+
+@utility font-display-soft {
+  font-family: var(--font-display);
+  font-variation-settings:
+    'SOFT' 100,
+    'WONK' 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
