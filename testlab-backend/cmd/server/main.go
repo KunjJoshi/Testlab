@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/KunjJoshi/testlab-backend/internal/auth"
+	"github.com/KunjJoshi/testlab-backend/internal/cors"
 	"github.com/KunjJoshi/testlab-backend/internal/handlers"
 )
 
@@ -50,6 +51,7 @@ func main() {
 	authHandler := &handlers.AuthHandler{DB: pool}
 	mux.HandleFunc("GET /auth/github/login", authHandler.GithubLogin)
 	mux.HandleFunc("GET /auth/github/callback", authHandler.GithubCallback)
+	mux.HandleFunc("POST /auth/logout", authHandler.Logout)
 
 	// -- protected: everything else, wrapped in one auth middleware --
 	protected := http.NewServeMux()
@@ -62,7 +64,9 @@ func main() {
 	}
 
 	log.Printf("listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, mux))
+	allowedOrigins := cors.ParseOrigins(os.Getenv("ALLOWED_ORIGINS"), auth.FrontendURL())
+	log.Printf("CORS allowed origins: %v", allowedOrigins)
+	log.Fatal(http.ListenAndServe(":"+port, cors.Middleware(allowedOrigins)(mux)))
 }
 
 func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
