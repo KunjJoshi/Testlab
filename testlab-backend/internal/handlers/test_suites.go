@@ -72,8 +72,8 @@ func (h *SuiteHandler) CreateSuite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.SuiteName == "" {
-		http.Error(w, "invalid values for Suite Name and/or Owner ID", http.StatusBadRequest)
+	if isBlank(req.SuiteName) {
+		http.Error(w, "suite_name is required", http.StatusBadRequest)
 		return
 	}
 
@@ -112,7 +112,7 @@ func (h *SuiteHandler) GetSuiteByID(w http.ResponseWriter, r *http.Request) {
 	var resp SuiteResponse
 	err := h.DB.QueryRow(r.Context(), `
 		SELECT t.suite_id, t.suite_name, COALESCE(t.suite_description, ''), t.owner_id,
-		       CASE WHEN t.owner_id = $2 THEN 'owner' ELSE 'shared' END AS ownership_type,
+		       CASE WHEN t.owner_id = $2 THEN 'owned' ELSE 'shared' END AS ownership_type,
 		       t.created_at, t.updated_at
 		FROM test_suites t
 		WHERE t.suite_id = $1
@@ -240,6 +240,10 @@ func (h *SuiteHandler) UpdateSuiteByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body provided", http.StatusBadRequest)
 		return
 	}
+	if req.SuiteName != nil && isBlank(*req.SuiteName) {
+		http.Error(w, "suite_name cannot be empty", http.StatusBadRequest)
+		return
+	}
 
 	var resp SuiteResponse
 	err := h.DB.QueryRow(r.Context(), `
@@ -258,7 +262,7 @@ func (h *SuiteHandler) UpdateSuiteByID(w http.ResponseWriter, r *http.Request) {
 		    )
 		  )
 		RETURNING suite_id, suite_name, COALESCE(suite_description, ''), owner_id,
-		          CASE WHEN owner_id = $4 THEN 'owner' ELSE 'shared' END, created_at, updated_at
+		          CASE WHEN owner_id = $4 THEN 'owned' ELSE 'shared' END, created_at, updated_at
 	`, req.SuiteName, req.SuiteDescription, id, requestingUserID).Scan(
 		&resp.SuiteID, &resp.SuiteName, &resp.SuiteDescription, &resp.OwnerID,
 		&resp.OwnershipType, &resp.CreatedAt, &resp.UpdatedAt,
@@ -306,13 +310,13 @@ func (h *SuiteHandler) DeleteSuiteByID(w http.ResponseWriter, r *http.Request) {
 
 	var resp DeletionStatus
 
-	if tag.RowsAffected() == 0 {
-		http.Error(w, "suite not found", http.StatusNotFound)
+	if err != nil {
+		http.Error(w, "error in deleting test suite", http.StatusInternalServerError)
 		return
 	}
 
-	if err != nil {
-		http.Error(w, "error in deleting test suite", http.StatusInternalServerError)
+	if tag.RowsAffected() == 0 {
+		http.Error(w, "suite not found, or only its owner or an admin can delete it", http.StatusNotFound)
 		return
 	}
 

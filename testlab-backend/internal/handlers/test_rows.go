@@ -75,6 +75,15 @@ func (h *RowsHandler) CreateNewTestRow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.ParentSuiteID == 0 || isBlank(req.TestName) {
+		http.Error(w, "Parent Suite ID and Test Name must always be provided", http.StatusBadRequest)
+		return
+	}
+	if !isValidHTTPStatus(req.ExpectedResponseStatus) {
+		http.Error(w, "expected_response_status must be an HTTP status code between 100 and 599", http.StatusBadRequest)
+		return
+	}
+
 	var permission_access bool
 	err = h.DB.QueryRow(r.Context(), `
 	SELECT EXISTS(
@@ -96,12 +105,7 @@ func (h *RowsHandler) CreateNewTestRow(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !permission_access {
-		http.Error(w, "Cannot process the requested transaction", http.StatusUnauthorized)
-		return
-	}
-
-	if req.ParentSuiteID == 0 || req.TestName == "" {
-		http.Error(w, "Parent Suite ID and Test Name must always be provided", http.StatusBadRequest)
+		http.Error(w, "suite not found, or you don't have write access to it", http.StatusForbidden)
 		return
 	}
 
@@ -109,8 +113,8 @@ func (h *RowsHandler) CreateNewTestRow(w http.ResponseWriter, r *http.Request) {
 	err = h.DB.QueryRow(r.Context(), `
 	INSERT INTO test_rows(test_name, parent_id, test_description, expected_output, execution_steps, expected_response_status)
 	VALUES ($1, $2, $3, $4, $5, $6)
-	RETURNING row_id, test_name, parent_id, test_description, 
-	expected_output, execution_steps, expected_response_status, test_status, created_at, updated_at
+	RETURNING row_id, test_name, parent_id, test_description,
+	expected_output, COALESCE(execution_steps, ''), expected_response_status, test_status, created_at, updated_at
 	`, req.TestName,
 		req.ParentSuiteID,
 		req.TestDescription,
@@ -158,9 +162,23 @@ func (h *RowsHandler) ImportBulkTestRows(w http.ResponseWriter, r *http.Request)
 	testRows := req.TestRows
 	parentID := req.ParentSuiteID
 
+	if parentID == 0 {
+		http.Error(w, "parent_suite_id must be provided", http.StatusBadRequest)
+		return
+	}
 	if len(testRows) == 0 {
 		http.Error(w, "test_rows must contain at least one item", http.StatusBadRequest)
 		return
+	}
+	for i, row := range testRows {
+		if isBlank(row.TestName) {
+			http.Error(w, fmt.Sprintf("test_rows[%d]: test_name is required", i), http.StatusBadRequest)
+			return
+		}
+		if !isValidHTTPStatus(row.ExpectedResponseStatus) {
+			http.Error(w, fmt.Sprintf("test_rows[%d]: expected_response_status must be an HTTP status code between 100 and 599", i), http.StatusBadRequest)
+			return
+		}
 	}
 
 	var permission_access bool
@@ -185,7 +203,7 @@ func (h *RowsHandler) ImportBulkTestRows(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !permission_access {
-		http.Error(w, "suite not found", http.StatusNotFound)
+		http.Error(w, "suite not found, or you don't have write access to it", http.StatusForbidden)
 		return
 	}
 
@@ -214,6 +232,7 @@ func (h *RowsHandler) ImportBulkTestRows(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]any{"status": "success", "inserted": len(testRows)})
 }
@@ -250,7 +269,7 @@ func (h *RowsHandler) ListAllTestRows(w http.ResponseWriter, r *http.Request) {
 	`, testSuiteID, requestingUserID).Scan(&permission_access)
 
 	if err != nil {
-		http.Error(w, "could not find requested Test Suite for your user account", http.StatusNotFound)
+		http.Error(w, "failed to check permissions: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -262,10 +281,11 @@ func (h *RowsHandler) ListAllTestRows(w http.ResponseWriter, r *http.Request) {
 	tests := []TestRowsResponse{}
 
 	rows, err := h.DB.Query(r.Context(), `
-	SELECT row_id, test_name, parent_id, test_description, expected_output, test_status, execution_steps, 
+	SELECT row_id, test_name, parent_id, test_description, expected_output, test_status, COALESCE(execution_steps, ''),
 	expected_response_status, created_at, updated_at
 	FROM test_rows
 	WHERE parent_id = $1
+	ORDER BY updated_at DESC
 	`, testSuiteID)
 
 	if err != nil {
@@ -317,8 +337,12 @@ func (h *RowsHandler) UpdateRow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err == pgx.ErrNoRows {
+		http.Error(w, "test row not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
-		http.Error(w, "orphaned test is found", http.StatusBadRequest)
+		http.Error(w, "failed to look up test row: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -341,12 +365,12 @@ func (h *RowsHandler) UpdateRow(w http.ResponseWriter, r *http.Request) {
 	`, testSuiteID, requestingUserID).Scan(&permission_access)
 
 	if err != nil {
-		http.Error(w, "could not find requested Test Suite for your user account", http.StatusNotFound)
+		http.Error(w, "failed to check permissions: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !permission_access {
-		http.Error(w, "could not find requested Test Suite for your user account", http.StatusNotFound)
+		http.Error(w, "you don't have write access to this suite", http.StatusForbidden)
 		return
 	}
 
@@ -354,6 +378,18 @@ func (h *RowsHandler) UpdateRow(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		http.Error(w, "malformed request body", http.StatusBadRequest)
+		return
+	}
+	if req.TestName != nil && isBlank(*req.TestName) {
+		http.Error(w, "test_name cannot be empty", http.StatusBadRequest)
+		return
+	}
+	if req.ExpectedResponseStatus != nil && !isValidHTTPStatus(*req.ExpectedResponseStatus) {
+		http.Error(w, "expected_response_status must be an HTTP status code between 100 and 599", http.StatusBadRequest)
+		return
+	}
+	if req.TestStatus != nil && !validTestStatuses[*req.TestStatus] {
+		http.Error(w, "status must be one of untested, in_progress, passed, failed", http.StatusBadRequest)
 		return
 	}
 
@@ -370,7 +406,7 @@ func (h *RowsHandler) UpdateRow(w http.ResponseWriter, r *http.Request) {
 	
 	WHERE row_id = $7
 	RETURNING row_id, test_name, test_description, expected_output, parent_id, expected_response_status,
-	execution_steps, test_status, created_at, updated_at
+	COALESCE(execution_steps, ''), test_status, created_at, updated_at
 	`, req.TestName, req.TestDescription, req.ExpectedOutput, req.ExecutionSteps, req.ExpectedResponseStatus, req.TestStatus, testRowID).Scan(&resp.TestRowID, &resp.TestName, &resp.TestDescription, &resp.ExpectedOutput, &resp.ParentSuiteID,
 		&resp.ExpectedResponseStatus, &resp.ExecutionSteps, &resp.TestStatus, &resp.CreatedAt, &resp.UpdatedAt)
 
@@ -407,8 +443,12 @@ func (h *RowsHandler) DeleteTestRow(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err == pgx.ErrNoRows {
+		http.Error(w, "test row not found", http.StatusNotFound)
+		return
+	}
 	if err != nil {
-		http.Error(w, "orphaned test is found", http.StatusBadRequest)
+		http.Error(w, "failed to look up test row: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -431,12 +471,12 @@ func (h *RowsHandler) DeleteTestRow(w http.ResponseWriter, r *http.Request) {
 	`, testSuiteID, requestingUserID).Scan(&permission_access)
 
 	if err != nil {
-		http.Error(w, "could not find requested Test Suite for your user account", http.StatusNotFound)
+		http.Error(w, "failed to check permissions: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if !permission_access {
-		http.Error(w, "could not find requested Test Suite for your user account", http.StatusNotFound)
+		http.Error(w, "you don't have write access to this suite", http.StatusForbidden)
 		return
 	}
 
