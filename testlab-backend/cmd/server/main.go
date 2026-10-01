@@ -69,6 +69,10 @@ func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 	suiteHandler := &handlers.SuiteHandler{DB: pool}
 	rowsHandler := &handlers.RowsHandler{DB: pool}
 	sharedHandler := &handlers.AccessHandler{DB: pool}
+	meHandler := &handlers.MeHandler{DB: pool}
+
+	// -- current user --
+	mux.HandleFunc("GET /me", meHandler.GetMe)
 
 	// -- suites --
 	mux.HandleFunc("POST /suites", suiteHandler.CreateSuite)

@@ -36,8 +36,14 @@ type AccessHandlingResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type SharedUserResponse struct {
+	AccessHandlingResponse
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url"`
+}
+
 type ListUsersResponse struct {
-	Users []AccessHandlingResponse
+	Users []SharedUserResponse
 }
 
 type RemovalRequest struct {
@@ -165,11 +171,13 @@ func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	users := []AccessHandlingResponse{}
+	users := []SharedUserResponse{}
 
 	rows, err := h.DB.Query(r.Context(), `
-	SELECT sharing_id, user_id, provider_id, suite_id, access_scope, created_at, updated_at
-	FROM shared_suites WHERE suite_id = $1
+	SELECT s.sharing_id, s.user_id, s.provider_id, s.suite_id, s.access_scope, s.created_at, s.updated_at,
+	u.username, COALESCE(u.avatar_url, '')
+	FROM shared_suites s JOIN users u ON u.user_id = s.user_id
+	WHERE s.suite_id = $1
 	`, suiteID)
 
 	if err != nil {
@@ -180,9 +188,9 @@ func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Re
 
 	for rows.Next() {
 
-		var access AccessHandlingResponse
+		var access SharedUserResponse
 		err = rows.Scan(&access.SharingID, &access.UserID, &access.ProviderID, &access.SuiteID,
-			&access.AccessScope, &access.CreatedAt, &access.UpdatedAt)
+			&access.AccessScope, &access.CreatedAt, &access.UpdatedAt, &access.Username, &access.AvatarURL)
 
 		if err != nil {
 			http.Error(w, "error in loading test", http.StatusInternalServerError)
