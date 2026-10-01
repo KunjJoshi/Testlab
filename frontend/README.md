@@ -49,12 +49,20 @@ src/
 
 ## Notes
 
-- **Authentication.** The session is resolved by `GET /me`. How the browser
-  receives its session is isolated in `src/auth/session.ts`.
+- **Authentication.** GitHub OAuth via the backend, which keeps the session JWT
+  in an HttpOnly `testlab_session` cookie — the app never sees the token. The
+  session is resolved by `GET /me`; every request sends `credentials: 'include'`
+  and an `X-Requested-With` header (the backend's CSRF guard). The backend's
+  `FRONTEND_URL` must point at this app (default `http://localhost:5173`).
+- **Production.** Serve `dist/` and reverse-proxy `/api` to the backend on the
+  same origin (recommended), or set `VITE_API_BASE_URL` to the API's URL and add
+  this app's origin to the backend's `ALLOWED_ORIGINS`. The frontend and API
+  must be on the same site (e.g. `app.example.com` + `api.example.com`) for the
+  `SameSite=Lax` cookie to be sent.
 - **Permissions** mirror the backend: `read` is view-only, `write` can edit tests
   and the suite, and `admin` (or the owner) can also share and delete.
 - **User search** for sharing is mocked in `src/api/users.ts` until the backend
   search endpoint exists. Typing a numeric user ID always targets that exact user.
-- **Bulk import** files must match the body of `POST /tests/import-bulk`; see the
-  format reference in the import dialog. The file is parsed and validated in the
-  browser, and only its contents are sent.
+- **Bulk import** files are a JSON array of test objects (see the import dialog
+  for the fields). The file is parsed and validated in the browser; the app sends
+  its contents to `POST /tests/import-bulk` with the open suite's ID.

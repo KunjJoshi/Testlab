@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import {
   MAX_IMPORT_BYTES,
-  bulkTemplate,
+  BULK_TEMPLATE,
   parseBulkImport,
   type ParsedImport,
 } from '@/lib/bulkImport'
@@ -36,20 +36,16 @@ export function BulkImportModal(props: BulkImportModalProps) {
   return props.open ? <BulkImport {...props} /> : null
 }
 
+/** Fields of each test object in the array. */
 const FIELDS = [
-  [
-    'parent_suite_id',
-    'number',
-    'required',
-    'The suite to import into. Pre-filled with this suite’s ID.',
-  ],
-  ['test_rows', 'array', 'required', 'The tests to create — at least one.'],
-  ['test_rows[].test_name', 'string', 'required', 'Name shown in the table.'],
-  ['test_rows[].expected_response_status', 'integer', 'required', 'HTTP status code, 100–599.'],
-  ['test_rows[].test_description', 'string', 'optional', 'What the test checks.'],
-  ['test_rows[].expected_output', 'string', 'optional', 'Expected response body or result.'],
-  ['test_rows[].execution_steps', 'string', 'optional', 'Steps separated by newlines (\\n).'],
+  ['test_name', 'string', 'required', 'Name shown in the table.'],
+  ['expected_response_status', 'integer', 'required', 'HTTP status code, 100–599.'],
+  ['test_description', 'string', 'optional', 'What the test checks.'],
+  ['expected_output', 'string', 'optional', 'Expected response body or result.'],
+  ['execution_steps', 'string', 'optional', 'Steps separated by newlines (\\n).'],
 ] as const
+
+const EXAMPLE = JSON.stringify(BULK_TEMPLATE, null, 2)
 
 type FileState =
   | { kind: 'idle' }
@@ -70,8 +66,6 @@ function BulkImport({
   const [file, setFile] = useState<FileState>({ kind: 'idle' })
   const [dragging, setDragging] = useState(false)
   const [copied, setCopied] = useState(false)
-
-  const example = JSON.stringify(bulkTemplate(suiteId), null, 2)
 
   const readFile = async (f: File) => {
     if (f.size > MAX_IMPORT_BYTES) {
@@ -95,13 +89,13 @@ function BulkImport({
   }
 
   const copyExample = async () => {
-    await navigator.clipboard?.writeText(example)
+    await navigator.clipboard?.writeText(EXAMPLE)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
 
   const downloadTemplate = () => {
-    const url = URL.createObjectURL(new Blob([example + '\n'], { type: 'application/json' }))
+    const url = URL.createObjectURL(new Blob([EXAMPLE + '\n'], { type: 'application/json' }))
     const a = document.createElement('a')
     a.href = url
     a.download = `testlab-suite-${suiteId}-import.json`
@@ -264,17 +258,18 @@ function BulkImport({
             </div>
           </div>
           <p className="text-xs leading-relaxed text-ink-mute">
-            The file must match the body of the backend’s{' '}
-            <code className="font-mono text-ink-soft">POST /tests/import-bulk</code> exactly.
-            Imported tests start as <em>Untested</em>.
+            A JSON <strong className="text-ink-soft">array</strong> of tests — one object per test.
+            Don’t include a suite ID: everything is imported into{' '}
+            <strong className="text-ink-soft">{suiteName}</strong>. Imported tests start as{' '}
+            <em>Untested</em>.
           </p>
           <pre className="max-h-64 overflow-auto rounded-2xl bg-ink p-4 font-mono text-[12px] leading-relaxed text-[#efe6d4]">
-            {example}
+            {EXAMPLE}
           </pre>
           <div className="overflow-hidden rounded-2xl ring-1 ring-rule-soft">
             <table className="w-full table-fixed text-left text-xs">
               <colgroup>
-                <col className="w-[48%]" />
+                <col className="w-[42%]" />
                 <col className="w-[15%]" />
                 <col />
               </colgroup>

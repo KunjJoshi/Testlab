@@ -1,8 +1,5 @@
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
-/** Dev-only escape hatch: a JWT pasted into .env.local, never shipped in builds. */
-const DEV_TOKEN = import.meta.env.DEV ? import.meta.env.VITE_DEV_TOKEN : undefined
-
 export class ApiError extends Error {
   readonly status: number
 
@@ -11,24 +8,6 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
-}
-
-/*
- * The backend also answers 401 for some permission failures (e.g. sharing a
- * suite you don't administer), so only the auth middleware's own messages mean
- * the session itself is gone.
- */
-const SESSION_LOST_MESSAGES = [
-  'missing or invalid authorization header',
-  'invalid or expired token',
-]
-
-export function isSessionLost(error: unknown): boolean {
-  return (
-    error instanceof ApiError &&
-    error.status === 401 &&
-    SESSION_LOST_MESSAGES.some((m) => error.message.toLowerCase().includes(m))
-  )
 }
 
 type SessionLostListener = () => void
@@ -48,7 +27,8 @@ interface RequestOptions {
 export async function api<T>(path: string, { method = 'GET', body, signal }: RequestOptions = {}) {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (DEV_TOKEN) headers.Authorization = `Bearer ${DEV_TOKEN}`
+  // CSRF guard: the backend refuses cookie-authenticated writes without it.
+  headers['X-Requested-With'] = 'testlab'
 
   let response: Response
   try {
@@ -68,9 +48,11 @@ export async function api<T>(path: string, { method = 'GET', body, signal }: Req
 
   if (!response.ok) {
     const error = new ApiError(response.status, text.trim() || response.statusText)
-    // A 401 from /me just means "not signed in"; anywhere else it means the session ended.
-    if (path !== '/me' && isSessionLost(error))
+    // 401 always means "no valid session" (permission failures are 403). From /me
+    // that just means not signed in; anywhere else the session ended mid-use.
+    if (error.status === 401 && path !== '/me') {
       sessionLostListeners.forEach((listener) => listener())
+    }
     throw error
   }
 

@@ -1,12 +1,9 @@
 import { API_BASE_URL, api } from '@/lib/api'
 
 /*
- * Everything that depends on *how* the browser receives its session lives
- * here, so the transport (HttpOnly cookie vs. PKCE + bearer token) can change
- * without touching the rest of the app.
- *
- * Current assumption: the backend keeps the session in an HttpOnly cookie, so
- * the app never sees the JWT. `api()` sends `credentials: 'include'`.
+ * The backend keeps the session in an HttpOnly `testlab_session` cookie, so the
+ * app never sees the JWT: `api()` just sends `credentials: 'include'`. After
+ * GitHub, the backend redirects to FRONTEND_URL (or /login?error=… on failure).
  */
 
 /** Full-page hop to the backend, which redirects to GitHub and back. */
