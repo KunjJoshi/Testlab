@@ -97,10 +97,14 @@ export interface ListCollaboratorsResponse {
   Users: Collaborator[]
 }
 
-/** A user who can be found via search (mocked until the search API exists). */
+/** One match from GET /access/search-users. */
 export interface UserSearchResult {
   user_id: number
   username: string
-  avatar_url?: string
-  isSample?: boolean
+  avatar_url: string
+  github_user_id: string
+}
+
+export interface UserSearchResponse {
+  results: UserSearchResult[] | null
 }

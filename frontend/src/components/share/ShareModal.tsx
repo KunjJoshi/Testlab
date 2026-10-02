@@ -128,7 +128,7 @@ function Share({
                     aria-controls="share-results"
                     className="h-11 w-full rounded-xl bg-white pr-10 pl-10 text-[15px] ring-1 ring-rule ring-inset placeholder:text-ink-mute/70 focus:ring-2 focus:ring-suite focus:outline-none"
                   />
-                  {search.isFetching && (
+                  {search.isSettling && (
                     <LoaderCircle
                       className="absolute top-1/2 right-3.5 size-4 -translate-y-1/2 animate-spin text-ink-mute"
                       aria-hidden
@@ -144,8 +144,18 @@ function Share({
                   aria-label="Matching users"
                   className="absolute inset-x-0 top-12 z-10 max-h-64 overflow-y-auto rounded-2xl bg-card p-1.5 shadow-pop"
                 >
-                  {results.length === 0 && !search.isFetching && (
-                    <li className="px-3 py-3 text-sm text-ink-mute">No users match “{query}”.</li>
+                  {search.isError ? (
+                    <li className="px-3 py-3 text-sm text-danger">
+                      Couldn’t search users. {errorMessage(search.error)}
+                    </li>
+                  ) : results.length === 0 && search.isSettling ? (
+                    <li className="px-3 py-3 text-sm text-ink-mute">Searching…</li>
+                  ) : (
+                    results.length === 0 && (
+                      <li className="px-3 py-3 text-sm text-ink-mute">
+                        No Testlab users match “{query.trim()}”.
+                      </li>
+                    )
                   )}
                   {results.map((u) => {
                     const already = existing.has(u.user_id)
@@ -164,11 +174,6 @@ function Share({
                         >
                           <Avatar name={u.username} seed={u.user_id} size={30} src={u.avatar_url} />
                           <span className="flex-1 text-sm font-semibold">@{u.username}</span>
-                          {u.isSample && (
-                            <span className="rounded-full bg-progress-soft px-2 py-0.5 text-[10px] font-semibold text-progress">
-                              sample
-                            </span>
-                          )}
                           {already && (
                             <span className="text-xs text-ink-mute">already has access</span>
                           )}
@@ -191,8 +196,8 @@ function Share({
             </Button>
           </div>
           <p className="mt-2 text-xs text-ink-mute">
-            Search by GitHub username. User search is a preview — names marked <em>sample</em> are
-            placeholders until the search service is connected.
+            Search by GitHub username. Only people who have signed in to Testlab at least once can
+            be found.
           </p>
           {share.error && (
             <p
