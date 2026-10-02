@@ -36,8 +36,14 @@ type AccessHandlingResponse struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type SharedUserResponse struct {
+	AccessHandlingResponse
+	Username  string `json:"username"`
+	AvatarURL string `json:"avatar_url"`
+}
+
 type ListUsersResponse struct {
-	Users []AccessHandlingResponse
+	Users []SharedUserResponse
 }
 
 type RemovalRequest struct {
@@ -86,12 +92,39 @@ func (h *AccessHandler) ProvideAccessToUser(w http.ResponseWriter, r *http.Reque
 	}
 
 	if !permission_access {
-		http.Error(w, "Cannot process the requested transaction", http.StatusUnauthorized)
+		http.Error(w, "only the suite owner or an admin can manage access", http.StatusForbidden)
 		return
 	}
 
 	if req.SuiteID == 0 || req.UserID == 0 || req.AccessScope == "" {
 		http.Error(w, "Suite ID, Access Scope and User ID must always be provided", http.StatusBadRequest)
+		return
+	}
+	if !validAccessScopes[req.AccessScope] {
+		http.Error(w, "access_scope must be one of read, write, admin", http.StatusBadRequest)
+		return
+	}
+
+	var isOwner, userExists, alreadyShared bool
+	err = h.DB.QueryRow(r.Context(), `
+	SELECT
+		EXISTS(SELECT 1 FROM test_suites WHERE suite_id = $1 AND owner_id = $2),
+		EXISTS(SELECT 1 FROM users WHERE user_id = $2),
+		EXISTS(SELECT 1 FROM shared_suites WHERE suite_id = $1 AND user_id = $2)
+	`, req.SuiteID, req.UserID).Scan(&isOwner, &userExists, &alreadyShared)
+	if err != nil {
+		http.Error(w, "failed to check the requested user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	switch {
+	case isOwner:
+		http.Error(w, "that user owns this suite and already has full access", http.StatusBadRequest)
+		return
+	case !userExists:
+		http.Error(w, "no Testlab user with that ID", http.StatusNotFound)
+		return
+	case alreadyShared:
+		http.Error(w, "that user already has access; change their access level instead", http.StatusConflict)
 		return
 	}
 
@@ -111,7 +144,7 @@ func (h *AccessHandler) ProvideAccessToUser(w http.ResponseWriter, r *http.Reque
 	)
 
 	if err != nil {
-		http.Error(w, "error in inserting test row to Parent Suite", http.StatusInternalServerError)
+		http.Error(w, "failed to share the suite: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -156,7 +189,7 @@ func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Re
 	}
 
 	if !permission_access {
-		http.Error(w, "Cannot process the requested transaction", http.StatusUnauthorized)
+		http.Error(w, "only the suite owner or an admin can manage access", http.StatusForbidden)
 		return
 	}
 
@@ -165,11 +198,13 @@ func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	users := []AccessHandlingResponse{}
+	users := []SharedUserResponse{}
 
 	rows, err := h.DB.Query(r.Context(), `
-	SELECT sharing_id, user_id, provider_id, suite_id, access_scope, created_at, updated_at
-	FROM shared_suites WHERE suite_id = $1
+	SELECT s.sharing_id, s.user_id, s.provider_id, s.suite_id, s.access_scope, s.created_at, s.updated_at,
+	u.username, COALESCE(u.avatar_url, '')
+	FROM shared_suites s JOIN users u ON u.user_id = s.user_id
+	WHERE s.suite_id = $1
 	`, suiteID)
 
 	if err != nil {
@@ -180,9 +215,9 @@ func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Re
 
 	for rows.Next() {
 
-		var access AccessHandlingResponse
+		var access SharedUserResponse
 		err = rows.Scan(&access.SharingID, &access.UserID, &access.ProviderID, &access.SuiteID,
-			&access.AccessScope, &access.CreatedAt, &access.UpdatedAt)
+			&access.AccessScope, &access.CreatedAt, &access.UpdatedAt, &access.Username, &access.AvatarURL)
 
 		if err != nil {
 			http.Error(w, "error in loading test", http.StatusInternalServerError)
@@ -244,12 +279,16 @@ func (h *AccessHandler) UpdateUserAccess(w http.ResponseWriter, r *http.Request)
 	}
 
 	if !permission_access {
-		http.Error(w, "Cannot process the requested transaction", http.StatusUnauthorized)
+		http.Error(w, "only the suite owner or an admin can manage access", http.StatusForbidden)
 		return
 	}
 
 	if req.SuiteID == 0 || req.UserID == 0 || req.AccessScope == "" {
 		http.Error(w, "Suite ID, Access Scope and User ID must always be provided", http.StatusBadRequest)
+		return
+	}
+	if !validAccessScopes[req.AccessScope] {
+		http.Error(w, "access_scope must be one of read, write, admin", http.StatusBadRequest)
 		return
 	}
 
@@ -322,12 +361,12 @@ func (h *AccessHandler) RemoveUserAccess(w http.ResponseWriter, r *http.Request)
 	}
 
 	if !permission_access {
-		http.Error(w, "Cannot process the requested transaction", http.StatusUnauthorized)
+		http.Error(w, "only the suite owner or an admin can manage access", http.StatusForbidden)
 		return
 	}
 
 	if req.SuiteID == 0 || req.UserID == 0 {
-		http.Error(w, "Suite ID, Access Scope and User ID must always be provided", http.StatusBadRequest)
+		http.Error(w, "Suite ID and User ID must always be provided", http.StatusBadRequest)
 		return
 	}
 

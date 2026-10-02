@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -75,7 +74,7 @@ func (h *TokenHandler) Token(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tokenResponse{
 		AccessToken: jwtStr,
 		TokenType:   "Bearer",
-		ExpiresIn:   int((7 * 24 * time.Hour).Seconds()),
+		ExpiresIn:   int(auth.TokenTTL.Seconds()),
 	})
 }
 

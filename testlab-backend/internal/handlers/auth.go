@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -72,27 +72,49 @@ func (h *AuthHandler) handleCIMDCallback(w http.ResponseWriter, r *http.Request,
 	http.Redirect(w, r, redirectURL, http.StatusTemporaryRedirect)
 }
 
+// handleLegacyCallback completes the browser login: the JWT is stored in an
+// HttpOnly cookie and the user is sent back to the frontend. The token never
+// appears in a URL or a response body.
 func (h *AuthHandler) handleLegacyCallback(w http.ResponseWriter, r *http.Request, code, state string) {
+	http.SetCookie(w, &http.Cookie{Name: "oauth_state", Value: "", Path: "/", MaxAge: -1, HttpOnly: true})
+
+	if ghErr := r.URL.Query().Get("error"); ghErr != "" {
+		redirectToLogin(w, r, "GitHub access was not granted")
+		return
+	}
+
 	cookie, err := r.Cookie("oauth_state")
 	if err != nil || cookie.Value != state {
-		http.Error(w, "invalid oauth state", http.StatusBadRequest)
+		redirectToLogin(w, r, "the login link expired, please try again")
 		return
 	}
 
 	userID, err := h.exchangeAndUpsertUser(r, code)
 	if err != nil {
-		http.Error(w, "failed to complete github login: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("github login failed: %v", err)
+		redirectToLogin(w, r, "could not complete GitHub login")
 		return
 	}
 
 	jwtStr, err := auth.IssueToken(userID)
 	if err != nil {
-		http.Error(w, "failed to issue session token", http.StatusInternalServerError)
+		redirectToLogin(w, r, "could not start your session")
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"token": jwtStr})
+	auth.SetSessionCookie(w, jwtStr)
+	http.Redirect(w, r, auth.FrontendURL()+"/", http.StatusFound)
+}
+
+// Logout clears the browser session cookie. JWTs are stateless, so a token
+// copied elsewhere stays valid until it expires.
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	auth.ClearSessionCookie(w)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func redirectToLogin(w http.ResponseWriter, r *http.Request, message string) {
+	http.Redirect(w, r, auth.FrontendURL()+"/login?error="+url.QueryEscape(message), http.StatusFound)
 }
 
 func (h *AuthHandler) exchangeAndUpsertUser(r *http.Request, code string) (int64, error) {
