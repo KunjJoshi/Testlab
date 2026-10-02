@@ -51,6 +51,17 @@ type RemovalRequest struct {
 	SuiteID int `json:"suite_id"`
 }
 
+type UserSearchResult struct {
+	UserID       int    `json:"user_id"`
+	Username     string `json:"username"`
+	AvatarURL    string `json:"avatar_url"`
+	GithubUserID string `json:"github_user_id"`
+}
+
+type UserSearchResponse struct {
+	Results []UserSearchResult `json:"results"`
+}
+
 func (h *AccessHandler) ProvideAccessToUser(w http.ResponseWriter, r *http.Request) {
 
 	userID, ok := auth.UserIDFromContext(r.Context())
@@ -151,6 +162,54 @@ func (h *AccessHandler) ProvideAccessToUser(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *AccessHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
+	if _, ok := auth.UserIDFromContext(r.Context()); !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		http.Error(w, "query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	rows, err := h.DB.Query(r.Context(), `
+	SELECT user_id, username, avatar_url, github_user_id 
+	FROM users
+	WHERE username ILIKE '%' || $1 || '%'
+	ORDER BY username ASC
+	LIMIT 5
+	`, query)
+
+	if err != nil {
+		http.Error(w, "failed to search users: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer rows.Close()
+
+	var results []UserSearchResult
+	for rows.Next() {
+		var u UserSearchResult
+		if err = rows.Scan(&u.UserID, &u.Username, &u.AvatarURL, &u.GithubUserID); err != nil {
+			http.Error(w, "error in loading user records", http.StatusInternalServerError)
+			return
+		}
+		results = append(results, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		http.Error(w, "error scanning user rows", http.StatusInternalServerError)
+		return
+	}
+
+	var resp UserSearchResponse
+	resp.Results = results
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+
 }
 
 func (h *AccessHandler) ListAllUsersWithAccess(w http.ResponseWriter, r *http.Request) {
