@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/KunjJoshi/testlab-backend/internal/auth"
 	"github.com/jackc/pgx/v5"
@@ -21,20 +22,25 @@ type CreateSuiteRequest struct {
 }
 
 type SuiteResponse struct {
-	SuiteID          int    `json:"suite_id"`
-	SuiteName        string `json:"suite_name"`
-	SuiteDescription string `json:"suite_description"`
-	OwnerID          int    `json:"owner_id"`
-	OwnershipType    string `json:"ownership_type"`
+	SuiteID          int       `json:"suite_id"`
+	SuiteName        string    `json:"suite_name"`
+	SuiteDescription string    `json:"suite_description"`
+	OwnerID          int       `json:"owner_id"`
+	OwnershipType    string    `json:"ownership_type"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 type SharedSuiteResponse struct {
-	SuiteID          int    `json:"suite_id"`
-	SuiteName        string `json:"suite_name"`
-	SuiteDescription string `json:"suite_description"`
-	OwnerID          int    `json:"owner_id"`
-	OwnershipType    string `json:"ownership_type"`
-	AccessScope      string `json:"access_scope"`
+	SuiteID          int       `json:"suite_id"`
+	SuiteName        string    `json:"suite_name"`
+	SuiteDescription string    `json:"suite_description"`
+	OwnerID          int       `json:"owner_id"`
+	OwnerUsername    string    `json:"owner_username"`
+	OwnershipType    string    `json:"ownership_type"`
+	AccessScope      string    `json:"access_scope"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 type ListSuitesResponse struct {
 	OwnedSuites  []SuiteResponse
@@ -66,8 +72,8 @@ func (h *SuiteHandler) CreateSuite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.SuiteName == "" {
-		http.Error(w, "invalid values for Suite Name and/or Owner ID", http.StatusBadRequest)
+	if isBlank(req.SuiteName) {
+		http.Error(w, "suite_name is required", http.StatusBadRequest)
 		return
 	}
 
@@ -76,9 +82,9 @@ func (h *SuiteHandler) CreateSuite(w http.ResponseWriter, r *http.Request) {
 	err := h.DB.QueryRow(r.Context(),
 		` INSERT INTO test_suites(suite_name, suite_description, owner_id)
 		VALUES ($1, $2, $3)
-		RETURNING suite_id, suite_name, suite_description, owner_id`,
+		RETURNING suite_id, suite_name, COALESCE(suite_description, ''), owner_id, 'owned', created_at, updated_at`,
 		req.SuiteName, req.SuiteDescription, requestingUserID,
-	).Scan(&resp.SuiteID, &resp.SuiteName, &resp.SuiteDescription, &resp.OwnerID)
+	).Scan(&resp.SuiteID, &resp.SuiteName, &resp.SuiteDescription, &resp.OwnerID, &resp.OwnershipType, &resp.CreatedAt, &resp.UpdatedAt)
 
 	if err != nil {
 		http.Error(w, "Failed to write the Test Suite to database", http.StatusInternalServerError)
@@ -105,8 +111,9 @@ func (h *SuiteHandler) GetSuiteByID(w http.ResponseWriter, r *http.Request) {
 
 	var resp SuiteResponse
 	err := h.DB.QueryRow(r.Context(), `
-		SELECT t.suite_id, t.suite_name, t.suite_description, t.owner_id,
-		       CASE WHEN t.owner_id = $2 THEN 'owner' ELSE 'shared' END AS ownership_type
+		SELECT t.suite_id, t.suite_name, COALESCE(t.suite_description, ''), t.owner_id,
+		       CASE WHEN t.owner_id = $2 THEN 'owned' ELSE 'shared' END AS ownership_type,
+		       t.created_at, t.updated_at
 		FROM test_suites t
 		WHERE t.suite_id = $1
 		  AND (
@@ -118,7 +125,7 @@ func (h *SuiteHandler) GetSuiteByID(w http.ResponseWriter, r *http.Request) {
 		  )
 	`, id, requestingUserID).Scan(
 		&resp.SuiteID, &resp.SuiteName, &resp.SuiteDescription,
-		&resp.OwnerID, &resp.OwnershipType,
+		&resp.OwnerID, &resp.OwnershipType, &resp.CreatedAt, &resp.UpdatedAt,
 	)
 
 	if err == pgx.ErrNoRows {
@@ -148,7 +155,8 @@ func (h *SuiteHandler) ListAllSuites(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.DB.Query(r.Context(), `
-	SELECT suite_id, suite_name, suite_description, owner_id, 'owned' as ownership_type
+	SELECT suite_id, suite_name, COALESCE(suite_description, ''), owner_id, 'owned' as ownership_type,
+	created_at, updated_at
 	FROM test_suites WHERE owner_id = $1
 	`, requestingUserID)
 
@@ -161,7 +169,7 @@ func (h *SuiteHandler) ListAllSuites(w http.ResponseWriter, r *http.Request) {
 	suites := []SuiteResponse{}
 	for rows.Next() {
 		var s SuiteResponse
-		if err := rows.Scan(&s.SuiteID, &s.SuiteName, &s.SuiteDescription, &s.OwnerID, &s.OwnershipType); err != nil {
+		if err := rows.Scan(&s.SuiteID, &s.SuiteName, &s.SuiteDescription, &s.OwnerID, &s.OwnershipType, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			http.Error(w, "failed to read Suite Row", http.StatusInternalServerError)
 			return
 		}
@@ -177,8 +185,11 @@ func (h *SuiteHandler) ListAllSuites(w http.ResponseWriter, r *http.Request) {
 	sharedSuites := []SharedSuiteResponse{}
 
 	rows, err = h.DB.Query(r.Context(), `
-	SELECT t.suite_id, s.user_id, t.suite_name, t.suite_description, s.access_scope, 'shared' as ownership_type
-	FROM test_suites t JOIN shared_suites s ON t.suite_id = s.suite_id
+	SELECT t.suite_id, t.owner_id, u.username, t.suite_name, COALESCE(t.suite_description, ''), s.access_scope,
+	'shared' as ownership_type, t.created_at, t.updated_at
+	FROM test_suites t
+	JOIN shared_suites s ON t.suite_id = s.suite_id
+	JOIN users u ON u.user_id = t.owner_id
 	WHERE s.user_id = $1
 	`, requestingUserID)
 
@@ -186,11 +197,12 @@ func (h *SuiteHandler) ListAllSuites(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error in fetching shared suites for user", http.StatusInternalServerError)
 		return
 	}
-	rows.Close()
+	defer rows.Close()
 
 	for rows.Next() {
 		var s SharedSuiteResponse
-		if err := rows.Scan(&s.SuiteID, &s.OwnerID, &s.SuiteName, &s.SuiteDescription, &s.AccessScope, &s.OwnershipType); err != nil {
+		if err := rows.Scan(&s.SuiteID, &s.OwnerID, &s.OwnerUsername, &s.SuiteName, &s.SuiteDescription, &s.AccessScope,
+			&s.OwnershipType, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			http.Error(w, "error in loading shared suite row", http.StatusInternalServerError)
 			return
 		}
@@ -228,6 +240,10 @@ func (h *SuiteHandler) UpdateSuiteByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid body provided", http.StatusBadRequest)
 		return
 	}
+	if req.SuiteName != nil && isBlank(*req.SuiteName) {
+		http.Error(w, "suite_name cannot be empty", http.StatusBadRequest)
+		return
+	}
 
 	var resp SuiteResponse
 	err := h.DB.QueryRow(r.Context(), `
@@ -245,9 +261,11 @@ func (h *SuiteHandler) UpdateSuiteByID(w http.ResponseWriter, r *http.Request) {
 		          AND s.access_scope IN ('write', 'admin')
 		    )
 		  )
-		RETURNING suite_id, suite_name, suite_description, owner_id
+		RETURNING suite_id, suite_name, COALESCE(suite_description, ''), owner_id,
+		          CASE WHEN owner_id = $4 THEN 'owned' ELSE 'shared' END, created_at, updated_at
 	`, req.SuiteName, req.SuiteDescription, id, requestingUserID).Scan(
 		&resp.SuiteID, &resp.SuiteName, &resp.SuiteDescription, &resp.OwnerID,
+		&resp.OwnershipType, &resp.CreatedAt, &resp.UpdatedAt,
 	)
 
 	if err == pgx.ErrNoRows {
@@ -292,13 +310,13 @@ func (h *SuiteHandler) DeleteSuiteByID(w http.ResponseWriter, r *http.Request) {
 
 	var resp DeletionStatus
 
-	if tag.RowsAffected() == 0 {
-		http.Error(w, "suite not found", http.StatusNotFound)
+	if err != nil {
+		http.Error(w, "error in deleting test suite", http.StatusInternalServerError)
 		return
 	}
 
-	if err != nil {
-		http.Error(w, "error in deleting test suite", http.StatusInternalServerError)
+	if tag.RowsAffected() == 0 {
+		http.Error(w, "suite not found, or only its owner or an admin can delete it", http.StatusNotFound)
 		return
 	}
 
