@@ -97,4 +97,5 @@ func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 	mux.HandleFunc("GET /access/list-users/{suite_id}", sharedHandler.ListAllUsersWithAccess)
 	mux.HandleFunc("PATCH /access/update-access", sharedHandler.UpdateUserAccess)
 	mux.HandleFunc("DELETE /access/remove-user", sharedHandler.RemoveUserAccess)
+	mux.HandleFunc("GET /access/search-users", sharedHandler.SearchUsers)
 }
