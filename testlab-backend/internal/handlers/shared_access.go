@@ -121,7 +121,7 @@ func (h *AccessHandler) ProvideAccessToUser(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "that user owns this suite and already has full access", http.StatusBadRequest)
 		return
 	case !userExists:
-		http.Error(w, "no Testlab user with that ID", http.StatusNotFound)
+		http.Error(w, "that user doesn't have a Testlab account", http.StatusNotFound)
 		return
 	case alreadyShared:
 		http.Error(w, "that user already has access; change their access level instead", http.StatusConflict)
