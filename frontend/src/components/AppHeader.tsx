@@ -1,10 +1,10 @@
-import { Check, Copy, LogOut } from 'lucide-react'
-import { useState, type ReactNode } from 'react'
+import { LogOut } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useAuth, useCurrentUser } from '@/auth/context'
 import { Avatar } from './ui/Avatar'
 import { Logo } from './ui/Brand'
-import { MenuContent, MenuItem, MenuLabel, MenuRoot, MenuSeparator, MenuTrigger } from './ui/Menu'
+import { MenuContent, MenuItem, MenuRoot, MenuSeparator, MenuTrigger } from './ui/Menu'
 
 export function AppHeader({ children }: { children?: ReactNode }) {
   return (
@@ -23,13 +23,6 @@ export function AppHeader({ children }: { children?: ReactNode }) {
 function UserMenu() {
   const user = useCurrentUser()
   const { logout } = useAuth()
-  const [copied, setCopied] = useState(false)
-
-  const copyId = async () => {
-    await navigator.clipboard?.writeText(String(user.user_id))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
 
   return (
     <MenuRoot>
@@ -48,16 +41,6 @@ function UserMenu() {
             <p className="truncate text-xs text-ink-mute">{user.email}</p>
           </div>
         </div>
-        <MenuSeparator />
-        <MenuLabel>Your Testlab ID</MenuLabel>
-        <MenuItem
-          icon={copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          label={`#${user.user_id}`}
-          description={
-            copied ? 'Copied!' : 'Give this to teammates so they can share suites with you'
-          }
-          onSelect={() => void copyId()}
-        />
         <MenuSeparator />
         <MenuItem
           icon={<LogOut className="size-4" />}

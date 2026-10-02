@@ -111,7 +111,7 @@ export function SuitePage() {
         <header className="mt-6 animate-rise">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tracking-[0.14em] text-suite uppercase">
             <span className="inline-flex items-center gap-2">
-              <span className="size-2.5 rounded-full bg-suite" /> Suite #{suite.suite_id}
+              <span className="size-2.5 rounded-full bg-suite" /> Test suite
             </span>
           </p>
           <h1 className="mt-3 max-w-4xl font-display-soft text-5xl leading-[1.05] font-semibold tracking-tight break-words text-ink sm:text-6xl">

@@ -38,8 +38,7 @@ function Share({
   currentUserId,
   style,
 }: ShareModalProps) {
-  const ownerLabel =
-    ownerId === currentUserId ? 'You' : ownerName ? `@${ownerName}` : `User #${ownerId}`
+  const ownerLabel = ownerId === currentUserId ? 'You' : ownerName ? `@${ownerName}` : 'Suite owner'
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<UserSearchResult | null>(null)
   const [scope, setScope] = useState<AccessScope>('read')
@@ -61,7 +60,7 @@ function Share({
       { userId: selected.user_id, scope },
       {
         onSuccess: () => {
-          toast.success(`Shared with ${selected.username}`)
+          toast.success(`Shared with @${selected.username}`)
           setSelected(null)
           setQuery('')
         },
@@ -101,10 +100,7 @@ function Share({
                     src={selected.avatar_url}
                   />
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                    {selected.username}
-                    <span className="ml-2 font-mono text-xs font-normal text-ink-mute">
-                      #{selected.user_id}
-                    </span>
+                    @{selected.username}
                   </span>
                   <button
                     type="button"
@@ -124,7 +120,7 @@ function Share({
                     id="share-search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Username or user ID, e.g. 42"
+                    placeholder="Search by username"
                     autoComplete="off"
                     autoFocus
                     role="combobox"
@@ -167,15 +163,15 @@ function Share({
                           className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-suite-tint disabled:opacity-50"
                         >
                           <Avatar name={u.username} seed={u.user_id} size={30} src={u.avatar_url} />
-                          <span className="flex-1 text-sm font-semibold">{u.username}</span>
+                          <span className="flex-1 text-sm font-semibold">@{u.username}</span>
                           {u.isSample && (
                             <span className="rounded-full bg-progress-soft px-2 py-0.5 text-[10px] font-semibold text-progress">
                               sample
                             </span>
                           )}
-                          <span className="font-mono text-xs text-ink-mute">
-                            {already ? 'already added' : `#${u.user_id}`}
-                          </span>
+                          {already && (
+                            <span className="text-xs text-ink-mute">already has access</span>
+                          )}
                         </button>
                       </li>
                     )
@@ -195,8 +191,8 @@ function Share({
             </Button>
           </div>
           <p className="mt-2 text-xs text-ink-mute">
-            User search is a preview — names marked <em>sample</em> are placeholders. Typing a
-            numeric Testlab ID always shares with that exact account.
+            Search by GitHub username. User search is a preview — names marked <em>sample</em> are
+            placeholders until the search service is connected.
           </p>
           {share.error && (
             <p
@@ -234,7 +230,6 @@ function Share({
               <Avatar name={ownerName ?? ownerLabel} seed={ownerId} size={32} />
               <span className="flex-1 text-sm">
                 <span className="font-semibold">{ownerLabel}</span>
-                <span className="ml-2 font-mono text-xs text-ink-mute">#{ownerId}</span>
               </span>
               <span className="rounded-full bg-ink px-2.5 py-1 text-xs font-semibold text-paper">
                 Owner
@@ -253,44 +248,33 @@ function Share({
             )}
             {collaborators.data?.map((c) => (
               <li key={c.sharing_id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                <Avatar
-                  name={c.username || `#${c.user_id}`}
-                  src={c.avatar_url}
-                  seed={c.user_id}
-                  size={32}
-                />
+                <Avatar name={c.username} src={c.avatar_url} seed={c.user_id} size={32} />
                 <span className="min-w-0 flex-1 text-sm">
                   <span className="font-semibold">
-                    {c.user_id === currentUserId
-                      ? 'You'
-                      : c.username
-                        ? `@${c.username}`
-                        : `User #${c.user_id}`}
+                    {c.user_id === currentUserId ? 'You' : `@${c.username}`}
                   </span>
-                  <span className="ml-2 font-mono text-xs text-ink-mute">#{c.user_id}</span>
                 </span>
                 <AccessSelect
                   value={c.access_scope}
-                  label={`Access for ${c.username || c.user_id}`}
+                  label={`Access for @${c.username}`}
                   compact
                   onChange={(next) =>
                     update.mutate(
                       { userId: c.user_id, scope: next },
                       {
-                        onSuccess: () =>
-                          toast.success(`Updated access for ${c.username || `#${c.user_id}`}`),
+                        onSuccess: () => toast.success(`Updated access for @${c.username}`),
                         onError: (e) => toast.error(errorMessage(e)),
                       },
                     )
                   }
                 />
                 <IconButton
-                  label={`Remove ${c.username || `user #${c.user_id}`}`}
+                  label={`Remove @${c.username}`}
                   tone="danger"
                   disabled={remove.isPending && remove.variables === c.user_id}
                   onClick={() =>
                     remove.mutate(c.user_id, {
-                      onSuccess: () => toast.success(`Removed ${c.username || `#${c.user_id}`}`),
+                      onSuccess: () => toast.success(`Removed @${c.username}`),
                       onError: (e) => toast.error(errorMessage(e)),
                     })
                   }

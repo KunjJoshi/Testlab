@@ -18,8 +18,7 @@ export function Avatar({
   const [failed, setFailed] = useState(false)
   const palette = suitePalette(seed)
   const initials = name
-    .replace(/^User #/, '#')
-    .replace(/[^a-zA-Z0-9#]/g, ' ')
+    .replace(/[^a-zA-Z0-9]/g, ' ')
     .trim()
     .slice(0, 2)
     .toUpperCase()

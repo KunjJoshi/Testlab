@@ -59,7 +59,7 @@ export function SuiteCard({ suite, index }: SuiteCardProps) {
 
       <p className="flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] text-suite uppercase">
         <span className="size-2 rounded-full bg-suite" />
-        Suite #{suite.suite_id}
+        {shared ? 'Shared suite' : 'Your suite'}
       </p>
 
       <h3 className="mt-3 line-clamp-2 pr-16 font-display text-[26px] leading-[1.1] font-semibold tracking-tight">

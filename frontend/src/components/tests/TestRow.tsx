@@ -42,7 +42,6 @@ export function TestRowView({
     >
       <td className={CELL}>
         <p className="leading-snug font-semibold break-words text-ink">{test.test_name}</p>
-        <p className="mt-1 font-mono text-[11px] text-ink-mute">#{test.test_row_id}</p>
       </td>
       <td className={CELL}>
         {test.test_description ? (
@@ -187,7 +186,6 @@ export function TestRowEditor({ test, saving, onSave, onCancel }: TestRowEditorP
           autoFocus
         />
         {submitted && nameError && <p className="mt-1 text-xs text-danger">Name is required.</p>}
-        <p className="mt-1.5 font-mono text-[11px] text-ink-mute">#{test.test_row_id}</p>
       </td>
       <td className={CELL}>
         <textarea

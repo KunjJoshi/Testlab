@@ -6,8 +6,8 @@ import type { UserSearchResult } from '@/lib/types'
  * for `api<UserSearchResult[]>(`/users/search?q=${encodeURIComponent(query)}`)`
  * once it exists; nothing else needs to change.
  *
- * Typing a numeric user ID always yields that exact ID, so sharing with real
- * accounts already works today.
+ * Search is by username only. User IDs are used internally to call the
+ * sharing API but are never accepted as input or shown.
  */
 const SAMPLE_USERS: UserSearchResult[] = [
   { user_id: 2, username: 'ada-lovelace' },
@@ -19,20 +19,12 @@ const SAMPLE_USERS: UserSearchResult[] = [
 ].map((u) => ({ ...u, isSample: true }))
 
 export async function searchUsers(query: string): Promise<UserSearchResult[]> {
-  const q = query.trim().toLowerCase().replace(/^@|^#/, '')
+  const q = query.trim().toLowerCase().replace(/^@/, '')
   if (!q) return []
 
   await new Promise((resolve) => setTimeout(resolve, 180))
 
-  const results: UserSearchResult[] = []
-  if (/^\d+$/.test(q)) results.push({ user_id: Number(q), username: `User #${q}` })
-
-  for (const user of SAMPLE_USERS) {
-    if (user.username.includes(q) && !results.some((r) => r.user_id === user.user_id)) {
-      results.push(user)
-    }
-  }
-  return results.slice(0, 6)
+  return SAMPLE_USERS.filter((user) => user.username.includes(q)).slice(0, 6)
 }
 
 export function useUserSearch(query: string) {

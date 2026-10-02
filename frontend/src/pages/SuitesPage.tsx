@@ -93,9 +93,8 @@ export function SuitesPage() {
             <div className="rounded-[30px] border-2 border-dashed border-rule px-8 py-12 text-center">
               <p className="font-display text-xl font-semibold">Nothing shared with you yet</p>
               <p className="mx-auto mt-2 max-w-md text-sm text-ink-mute">
-                When someone shares a suite with you, it shows up here. They’ll need your Testlab ID
-                — <span className="font-mono font-semibold text-ink">#{user.user_id}</span> — which
-                you can also copy from your account menu.
+                When someone shares a suite with you, it shows up here. Teammates can find you by
+                your username, <span className="font-semibold text-ink">@{user.username}</span>.
               </p>
             </div>
           ) : (
