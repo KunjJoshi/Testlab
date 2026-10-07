@@ -1,0 +1,208 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Decides which gates run. A component's jobs run only when files under it
+  # (or this workflow) change; manual runs check everything.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.backend == 'true' }}
+      mcp: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.mcp == 'true' }}
+      frontend: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.frontend == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'testlab-backend/**'
+              - '.github/workflows/ci.yml'
+            mcp:
+              - 'testlab-mcp/**'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+
+  backend:
+    name: Backend (Go)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: testlab-backend
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testlab_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # Disposable CI database; the integration test applies migrations into a
+      # throwaway schema. No real credentials are used anywhere in CI.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/testlab_test?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: testlab-backend/go.mod
+          cache-dependency-path: testlab-backend/go.sum
+
+      - name: Download and verify modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum || (echo "::error::Run 'go mod tidy' in testlab-backend and commit the result." && exit 1)
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files need 'gofmt -w':"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test (unit + database integration)
+        run: go test -race -count=1 ./...
+
+  mcp:
+    name: MCP server (Go)
+    needs: changes
+    if: needs.changes.outputs.mcp == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: testlab-mcp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: testlab-mcp/go.mod
+          cache-dependency-path: testlab-mcp/go.sum
+
+      - name: Download and verify modules
+        run: |
+          go mod download
+          go mod verify
+
+      - name: go mod tidy is clean
+        run: |
+          go mod tidy
+          git diff --exit-code -- go.mod go.sum || (echo "::error::Run 'go mod tidy' in testlab-mcp and commit the result." && exit 1)
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::These files need 'gofmt -w':"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: go test -race -count=1 ./...
+
+  frontend:
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: ESLint (fix)
+        run: npm run eslint:fix
+
+      - name: Prettier (fix)
+        run: npm run prettier:fix
+
+      # The fixers above rewrite files in CI; if they changed anything, the
+      # committed code wasn't linted/formatted, so the gate fails.
+      - name: No changes left by the fixers
+        run: |
+          if ! git diff --exit-code -- .; then
+            echo "::error::ESLint/Prettier changed files. Run 'npm run eslint:fix && npm run prettier:fix' in frontend/ and commit."
+            exit 1
+          fi
+
+      - name: TypeScript check
+        run: npm run tscheck
+
+      - name: Build
+        run: npm run build
+
+  # Single required status check. Skipped jobs (component not changed) count as
+  # passing; any failed or cancelled job fails the gate.
+  ci-gate:
+    name: CI gate
+    needs: [changes, backend, mcp, frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summarise
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          BACKEND: ${{ needs.backend.result }}
+          MCP: ${{ needs.mcp.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+        run: |
+          echo "changes=$CHANGES backend=$BACKEND mcp=$MCP frontend=$FRONTEND"
+          for result in "$CHANGES" "$BACKEND" "$MCP" "$FRONTEND"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              echo "::error::A required CI job did not pass."
+              exit 1
+            fi
+          done

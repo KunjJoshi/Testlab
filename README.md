@@ -193,12 +193,15 @@ Make sure the backend's `FRONTEND_URL` points at this address (it does by defaul
 ### 3.3 Checks and build
 
 ```bash
-npm run check        # typecheck + ESLint + Prettier check (use in CI)
+npm run eslint:fix   # ESLint with autofix (fails on anything it can't fix)
+npm run prettier:fix # Prettier write
+npm run tscheck      # TypeScript project check
+npm run check        # typecheck + ESLint + Prettier check, without modifying files
 npm run build        # production build into dist/
 npm run preview      # serve the production build locally
 ```
 
-Individual scripts: `typecheck`, `lint`, `lint:fix`, `format`, `format:check`.
+Other scripts: `typecheck` (same as `tscheck`), `lint`, `lint:fix`, `format`, `format:check`.
 
 ### 3.4 Production notes
 
@@ -209,6 +212,51 @@ Individual scripts: `typecheck`, `lint`, `lint:fix`, `format`, `format:check`.
   for the `SameSite=Lax` session cookie to be sent.
 - Use HTTPS, and set the backend's `FRONTEND_URL`, `ISSUER_URL` and `GITHUB_REDIRECT_URL`
   (and the GitHub OAuth App's callback URL) to the production URLs.
+
+---
+
+## Tests and CI
+
+### Running the tests
+
+```bash
+# MCP server: unit tests plus a real JSON-RPC round trip against a fake backend
+cd testlab-mcp && go test -race ./...
+
+# Backend unit tests (no database needed)
+cd testlab-backend && go test -race ./...
+
+# Backend database integration test: runs the full happy path through the router
+docker run -d --rm --name testlab-test-pg -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=testlab_test -p 55432:5432 postgres:17
+cd testlab-backend
+TEST_DATABASE_URL="postgres://postgres:postgres@localhost:55432/testlab_test?sslmode=disable" \
+  go test -race ./...
+docker stop testlab-test-pg
+```
+
+The integration test creates a uniquely named schema, applies every migration in
+`testlab-backend/supabase/migrations` to it, and drops it afterwards. Without
+`TEST_DATABASE_URL` it is skipped. **Only point it at a disposable database, never at your
+real `DATABASE_URL`.** The tests set their own throwaway `JWT_SECRET`, so no real secrets
+are needed.
+
+### GitHub Actions
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every pull request, on pushes
+to `main`, and on demand. A **Detect changes** job checks which directories changed and
+runs only the matching gates:
+
+| Changed path | Gate | What runs |
+| --- | --- | --- |
+| `testlab-backend/**` | **Backend (Go)** | `go mod download`/`verify`, `go mod tidy` must be clean, `gofmt`, `go vet`, `go build`, `go test -race` (with a Postgres 17 service for the integration test) |
+| `testlab-mcp/**` | **MCP server (Go)** | the same Go checks, plus `go test -race` |
+| `frontend/**` | **Frontend** | `npm ci`, `npm run eslint:fix`, `npm run prettier:fix`, then fails if either fixer changed a file, then `npm run tscheck` and `npm run build` |
+
+Changing the workflow file runs every gate, and so does running it manually. A final
+**CI gate** job always runs and passes only if no gate failed or was cancelled; skipped
+gates count as passing. Make **CI gate** the single required status check in branch
+protection.
 
 ---
 
