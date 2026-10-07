@@ -37,6 +37,13 @@ func cookieSecure() bool {
 	return strings.HasPrefix(FrontendURL(), "https://")
 }
 
+func SameSiteMode() http.SameSite {
+	if cookieSecure() {
+		return http.SameSiteNoneMode
+	}
+	return http.SameSiteLaxMode
+}
+
 func SetSessionCookie(w http.ResponseWriter, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
@@ -45,7 +52,7 @@ func SetSessionCookie(w http.ResponseWriter, token string) {
 		MaxAge:   int(TokenTTL.Seconds()),
 		HttpOnly: true,
 		Secure:   cookieSecure(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: SameSiteMode(),
 	})
 }
 
@@ -57,6 +64,6 @@ func ClearSessionCookie(w http.ResponseWriter) {
 		MaxAge:   -1,
 		HttpOnly: true,
 		Secure:   cookieSecure(),
-		SameSite: http.SameSiteLaxMode,
+		SameSite: SameSiteMode(),
 	})
 }
