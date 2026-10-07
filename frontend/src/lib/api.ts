@@ -1,4 +1,4 @@
-import { getToken } from "./authToken"
+import { getToken } from './authToken'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -32,7 +32,6 @@ export async function api<T>(path: string, { method = 'GET', body, signal }: Req
 
   const token = getToken()
   if (token) headers['Authorization'] = `Bearer ${token}`
-  
 
   let response: Response
   try {

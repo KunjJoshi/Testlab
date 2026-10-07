@@ -29,8 +29,11 @@ The dev server proxies `/api/*` to the backend (`TESTLAB_BACKEND_URL`, default
 | `npm run build`        | Type-check and build for production into `dist/`       |
 | `npm run preview`      | Serve the production build locally                     |
 | `npm run typecheck`    | TypeScript project check (`tsc -b`)                    |
+| `npm run tscheck`      | Same as `typecheck` (used by CI)                       |
 | `npm run lint`         | ESLint (TypeScript, React hooks, jsx-a11y), 0 warnings |
 | `npm run lint:fix`     | ESLint with autofix                                    |
+| `npm run eslint:fix`   | ESLint with autofix, 0 warnings allowed (used by CI)   |
+| `npm run prettier:fix` | Prettier write (used by CI)                            |
 | `npm run format`       | Prettier write                                         |
 | `npm run format:check` | Prettier check                                         |
 | `npm run check`        | `typecheck` + `lint` + `format:check` (use in CI)      |

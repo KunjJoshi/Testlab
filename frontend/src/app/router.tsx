@@ -14,7 +14,8 @@ export const router = createBrowserRouter([
       { path: '/login', element: <LoginPage /> },
       {
         path: '/auth/callback',
-        lazy: () => import('@/pages/AuthCallbackPage').then((m) => ({ Component: m.AuthCallbackPage })),
+        lazy: () =>
+          import('@/pages/AuthCallbackPage').then((m) => ({ Component: m.AuthCallbackPage })),
       },
       {
         element: <RequireAuth />,

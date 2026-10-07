@@ -31,13 +31,25 @@ func main() {
 	}
 	defer pool.Close()
 
-	mux := http.NewServeMux()
-
 	issuerURL := os.Getenv("ISSUER_URL")
 	if issuerURL == "" {
 		issuerURL = "http://localhost:8080"
 		log.Println("ISSUER_URL not set, defaulting to http://localhost:8080")
 	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("listening on :%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, newRouter(pool, issuerURL)))
+}
+
+// newRouter builds the complete HTTP handler: public OAuth/auth routes, the
+// protected API behind RequireAuth, and CORS around everything.
+func newRouter(pool *pgxpool.Pool, issuerURL string) http.Handler {
+	mux := http.NewServeMux()
 
 	cimdCache := auth.NewCIMDCache()
 	authorizeHandler := &handlers.AuthorizeHandler{DB: pool, CIMDCache: cimdCache}
@@ -58,15 +70,9 @@ func main() {
 	registerRoutes(protected, pool)
 	mux.Handle("/", auth.RequireAuth(protected))
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("listening on :%s", port)
 	allowedOrigins := cors.ParseOrigins(os.Getenv("ALLOWED_ORIGINS"), auth.FrontendURL())
 	log.Printf("CORS allowed origins: %v", allowedOrigins)
-	log.Fatal(http.ListenAndServe(":"+port, cors.Middleware(allowedOrigins)(mux)))
+	return cors.Middleware(allowedOrigins)(mux)
 }
 
 func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
