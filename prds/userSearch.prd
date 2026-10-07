@@ -1,0 +1,51 @@
+# PRD: User Search for Sharing
+
+## Overview
+
+This document covers the user search endpoint added to `testlab-backend` (`GET /users/search`), which lets an authenticated user look up other Testlab users by username in order to grant them access to a test suite. It closes out the `search-users` item flagged as future work when avatar support and the sharing model were first designed.
+
+## Problem Statement
+
+Granting access to a suite (`provide-access`) requires a numeric `user_id` as input. In practice, nobody knows another person's internal `user_id` — they know a username, a GitHub handle, or a face (an avatar). Without a search capability, sharing a suite required manually looking up a collaborator's ID directly in the database, which isn't viable for any real, non-technical use of the sharing feature.
+
+## Goals
+
+- Let an authenticated user find another Testlab user by a partial, case-insensitive username match.
+- Return enough identifying information (username, avatar) to confidently pick the right person out of a short list of results, without requiring exact-match knowledge of their handle.
+- Keep the search scoped to people who already have a Testlab account — this was an explicit, deliberate design decision made earlier in the project: querying GitHub's own global user-search API was considered and rejected, since `shared_suites.user_id` can only ever reference someone who has already logged into Testlab at least once. Searching GitHub's full user base would return mostly people with no `user_id` to share anything with at all.
+
+## Non-Goals
+
+- Searching by email. Email is treated as sensitive account data elsewhere in the system and is deliberately excluded from this endpoint's response.
+- Exposing any user's GitHub access token or any other credential-shaped data. This endpoint returns only identity fields meant for human recognition, nothing used for authentication.
+- Any notion of search ranking beyond a simple substring match. At current scale, a plain `ILIKE` pattern match ordered alphabetically is sufficient; relevance ranking is not a problem yet.
+
+## Functional Requirements
+
+### Endpoint
+`GET /users/search?q=<partial-username>`
+
+- Requires a valid JWT, same as every other protected route — but performs no ownership or suite-specific authorization check. Any authenticated user may search the full user directory; the search itself grants no access to anything. The actual access boundary remains `provide-access`, which still requires the caller to hold `admin` scope on the specific suite being shared.
+- `q` is required; a missing query parameter returns `400`.
+- Matches are case-insensitive, partial (substring), and performed against `username`.
+- Results are capped at 20 rows and ordered alphabetically by username, to keep response size predictable without requiring pagination at this scale.
+
+### Response shape
+Returns a list of:
+- `user_id` — needed as the actual input to `provide-access` afterward.
+- `username`
+- `github_user_id`
+- `avatar_url` — nullable; users who signed up before avatar capture was added, or who haven't logged in since, will have no avatar yet. This is expected, not an error state, and the response represents it as `null` rather than an empty string or a placeholder image URL.
+
+`email` and `github_access_token` are deliberately never included in this response.
+
+## Design Decisions
+
+- **Parameterized `ILIKE` pattern, not string concatenation.** The `%` wildcards are built inside the SQL query itself (`'%' || $1 || '%'`), keeping the user-supplied value fully parameterized and consistent with how every other query in this codebase avoids injection risk.
+- **No suite-scoping on the search itself.** This was considered and deliberately rejected — restricting search results to "only people I already share something with" would make the feature useless for its actual purpose, which is finding *new* collaborators to share with for the first time.
+- **Avatar-first display, not avatar-based ranking.** When this was originally scoped, "avatar should show up first" was clarified to mean display ordering (image before username in a result row), a frontend concern, not a backend sort order — nearly every real GitHub account has a default avatar regardless of customization, so ranking by avatar presence was never implemented and isn't needed.
+
+## Open Items
+
+- Whether to also match against `github_user_id` directly (exact GitHub handle lookup), in addition to the current username-only partial match. Flagged as a trivial follow-up (`OR github_user_id ILIKE ...`), not yet implemented.
+- This endpoint is not yet exposed as an MCP tool — `/testlab`'s workflow doesn't currently call it, since suite creation and sharing from within the slash-command flow haven't been combined. Worth revisiting if a future version of `/testlab` wants to suggest or automate sharing as part of its output.
