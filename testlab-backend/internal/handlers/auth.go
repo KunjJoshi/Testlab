@@ -102,8 +102,7 @@ func (h *AuthHandler) handleLegacyCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	auth.SetSessionCookie(w, jwtStr)
-	http.Redirect(w, r, auth.FrontendURL()+"/", http.StatusFound)
+	http.Redirect(w, r, auth.FrontendURL()+"/auth/callback#token="+jwtStr, http.StatusFound)
 }
 
 // Logout clears the browser session cookie. JWTs are stateless, so a token
