@@ -1,3 +1,5 @@
+import { getToken } from "./authToken"
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
 export class ApiError extends Error {
@@ -27,8 +29,10 @@ interface RequestOptions {
 export async function api<T>(path: string, { method = 'GET', body, signal }: RequestOptions = {}) {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  // CSRF guard: the backend refuses cookie-authenticated writes without it.
-  headers['X-Requested-With'] = 'testlab'
+
+  const token = getToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  
 
   let response: Response
   try {
@@ -36,7 +40,6 @@ export async function api<T>(path: string, { method = 'GET', body, signal }: Req
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
-      credentials: 'include',
       signal,
     })
   } catch (cause) {

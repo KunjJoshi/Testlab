@@ -13,6 +13,10 @@ export const router = createBrowserRouter([
     children: [
       { path: '/login', element: <LoginPage /> },
       {
+        path: '/auth/callback',
+        lazy: () => import('@/pages/AuthCallbackPage').then((m) => ({ Component: m.AuthCallbackPage })),
+      },
+      {
         element: <RequireAuth />,
         children: [
           { path: '/', element: <SuitesPage /> },
