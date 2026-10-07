@@ -1,9 +1,43 @@
 # Testlab
 
-Testlab is an end-to-end testing notebook. You organise tests into **suites**, give each test
-its execution steps, expected HTTP status and expected output, and track its status as
-**Untested**, **In progress**, **Passed** or **Failed**. Suites can be shared with other
-Testlab users as view-only, editor or admin. Sign-in is via GitHub.
+**Keep a human in the loop when AI writes your code.**
+
+## Why Testlab exists
+
+Coding agents are fast. One prompt can produce hundreds of lines across a dozen files: new
+routes, new UI, new validation rules and edge cases nobody spelled out. That code is often
+too dense and too large to follow line by line, so people end up merging changes without
+really knowing whether the features they asked for work.
+
+Testlab closes that gap. Its `/testlab` command reads what changed on your branch (and,
+optionally, the spec you wrote for it) and turns it into a **complete end-to-end manual
+test suite**: one test per behaviour, each with execution steps, the expected HTTP status
+and the expected output. You then work through the suite in the Testlab web app, marking
+each test **Untested**, **In progress**, **Passed** or **Failed**, until you know what
+actually works.
+
+## Built for people, not to replace them
+
+Testlab is created to **keep the human element in software development, not to automate it
+away**. It doesn't run your tests for you, and it doesn't decide for you whether a feature
+is done. The agent does the tedious part: reading the diff and writing down what should be
+checked. A person does the part that matters: trying the feature, judging the result and
+signing off on it.
+
+## How it works
+
+1. **Build** your feature on a branch, with or without a coding agent.
+2. **Generate a suite.** In Claude Code, run `/testlab <base-branch> <your-branch> [prd-file]`.
+   Testlab reads the diff, lists every user-facing behaviour that changed, and creates a new
+   suite containing one test row per behaviour.
+3. **Test it yourself.** Open the suite in the web app, follow each test's steps, and record
+   the result. Tests can be edited inline, added by hand or bulk-imported from JSON.
+4. **Share the results.** Give teammates or reviewers view-only, editor or admin access, so
+   everyone can see what was checked and what's still failing before the branch merges.
+
+Sign-in is via GitHub.
+
+## What's in this repository
 
 The repository contains three services plus a Claude Code skill:
 
