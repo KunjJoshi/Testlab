@@ -1,6 +1,6 @@
-import { LogOut } from 'lucide-react'
+import { Layers, LogOut } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useAuth, useCurrentUser } from '@/auth/context'
 import { Avatar } from './ui/Avatar'
 import { Logo } from './ui/Brand'
@@ -23,6 +23,7 @@ export function AppHeader({ children }: { children?: ReactNode }) {
 function UserMenu() {
   const user = useCurrentUser()
   const { logout } = useAuth()
+  const navigate = useNavigate()
 
   return (
     <MenuRoot>
@@ -41,6 +42,13 @@ function UserMenu() {
             <p className="truncate text-xs text-ink-mute">{user.email}</p>
           </div>
         </div>
+        <MenuSeparator />
+        <MenuItem
+          icon={<Layers className="size-4" />}
+          label="Environment Management"
+          description="Your pipeline stages: Local, Dev, QA, Prod…"
+          onSelect={() => void navigate('/environments')}
+        />
         <MenuSeparator />
         <MenuItem
           icon={<LogOut className="size-4" />}

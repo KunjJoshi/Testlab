@@ -20,6 +20,8 @@ export interface Suite {
   suite_name: string
   suite_description: string
   owner_id: number
+  /** The suite's current stage, from the suite owner's environment list. */
+  environment_id: number
   ownership_type: string
   created_at: string
   updated_at: string
@@ -107,4 +109,24 @@ export interface UserSearchResult {
 
 export interface UserSearchResponse {
   results: UserSearchResult[] | null
+}
+
+/** One stage in a user's pipeline (Local → Dev → QA → Prod, plus custom ones). */
+export interface Environment {
+  environment_id: number
+  user_id: number
+  /** Pipeline order: lower ranks come first. The only source of truth for ordering. */
+  rank: number
+  slug: string
+}
+
+export interface ListEnvironmentsResponse {
+  environments: Environment[] | null
+}
+
+/** Response of PATCH /suites/promote-environment/{id}. */
+export interface PromoteSuiteResponse {
+  suite_details: Suite
+  /** Rows reset to untested; 0 when the move was a demotion. */
+  test_rows_updated: number
 }

@@ -22,6 +22,11 @@ export const router = createBrowserRouter([
         children: [
           { path: '/', element: <SuitesPage /> },
           {
+            path: '/environments',
+            lazy: () =>
+              import('@/pages/EnvironmentsPage').then((m) => ({ Component: m.EnvironmentsPage })),
+          },
+          {
             path: '/suites/:suiteId',
             lazy: () => import('@/pages/SuitePage').then((m) => ({ Component: m.SuitePage })),
           },

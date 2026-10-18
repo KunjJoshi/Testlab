@@ -1,0 +1,1 @@
+ALTER TABLE environment ADD CONSTRAINT environments_user_id_slug_key UNIQUE (user_id, slug);
