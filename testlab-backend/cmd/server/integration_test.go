@@ -105,6 +105,10 @@ func createUser(t *testing.T, pool *pgxpool.Pool, username string) (int64, strin
 	if err != nil {
 		t.Fatalf("insert user %s: %v", username, err)
 	}
+	// Sign-up seeds local/dev/qa/prod; do the same so suites have a starting environment.
+	if err := auth.AddDefaultEnvironments(context.Background(), pool, id); err != nil {
+		t.Fatalf("seed environments for %s: %v", username, err)
+	}
 	token, err := auth.IssueToken(id)
 	if err != nil {
 		t.Fatal(err)
@@ -158,6 +162,7 @@ type suiteJSON struct {
 	SuiteName        string `json:"suite_name"`
 	SuiteDescription string `json:"suite_description"`
 	OwnerID          int    `json:"owner_id"`
+	EnvironmentID    int    `json:"environment_id"`
 	OwnerUsername    string `json:"owner_username"`
 	AccessScope      string `json:"access_scope"`
 }
@@ -272,6 +277,60 @@ func TestHappyPath(t *testing.T) {
 		api.call("PATCH", rowPath, owner, map[string]any{"status": "passed"}, 200, &updated)
 		if updated.Status != "passed" || updated.TestName != "Pay with saved card" {
 			t.Errorf("updated row = %+v", updated)
+		}
+	})
+
+	t.Run("environments and promotion", func(t *testing.T) {
+		var envs struct {
+			Environments []struct {
+				EnvironmentID int    `json:"environment_id"`
+				Slug          string `json:"slug"`
+				Rank          int    `json:"rank"`
+			} `json:"environments"`
+		}
+		api.call("GET", fmt.Sprintf("/environments/%d", ownerID), owner, nil, 200, &envs)
+		if len(envs.Environments) != 4 {
+			t.Fatalf("environments = %+v, want the 4 defaults", envs.Environments)
+		}
+		bySlug := map[string]int{}
+		for _, e := range envs.Environments {
+			bySlug[e.Slug] = e.EnvironmentID
+		}
+		if suite.EnvironmentID != bySlug["local"] {
+			t.Errorf("new suite environment = %d, want local (%d)", suite.EnvironmentID, bySlug["local"])
+		}
+
+		type promoteResult struct {
+			Suite           suiteJSON `json:"suite_details"`
+			TestRowsUpdated int       `json:"test_rows_updated"`
+		}
+		promotePath := fmt.Sprintf("/suites/promote-environment/%d", suite.SuiteID)
+
+		// Promotion (local → qa) resets every test row.
+		var up promoteResult
+		api.call("PATCH", promotePath, owner, map[string]any{"environment_id": bySlug["qa"]}, 200, &up)
+		if up.Suite.EnvironmentID != bySlug["qa"] || up.TestRowsUpdated != 3 {
+			t.Errorf("promote = %+v, want environment qa and 3 rows reset", up)
+		}
+		var list struct{ Tests []rowJSON }
+		api.call("GET", fmt.Sprintf("/tests/%d", suite.SuiteID), owner, nil, 200, &list)
+		for _, r := range list.Tests {
+			if r.Status != "untested" {
+				t.Errorf("row %q status = %s after promotion, want untested", r.TestName, r.Status)
+			}
+		}
+
+		// Demotion (qa → dev) keeps results.
+		api.call("PATCH", rowPath, owner, map[string]any{"status": "passed"}, 200, nil)
+		var down promoteResult
+		api.call("PATCH", promotePath, owner, map[string]any{"environment_id": bySlug["dev"]}, 200, &down)
+		if down.Suite.EnvironmentID != bySlug["dev"] || down.TestRowsUpdated != 0 {
+			t.Errorf("demote = %+v, want environment dev and 0 rows reset", down)
+		}
+		var kept rowJSON
+		api.call("PATCH", rowPath, owner, map[string]any{}, 200, &kept)
+		if kept.Status != "passed" {
+			t.Errorf("row status after demotion = %s, want passed", kept.Status)
 		}
 	})
 
