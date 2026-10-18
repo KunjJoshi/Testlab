@@ -6,6 +6,7 @@ import { useDeleteSuite, useSuite, useUpdateSuite } from '@/api/suites'
 import { useBulkImport, useCreateTest, useDeleteTest, useTests, useUpdateTest } from '@/api/tests'
 import { useCurrentUser } from '@/auth/context'
 import { AppHeader } from '@/components/AppHeader'
+import { EnvironmentBadge } from '@/components/environments/EnvironmentBadge'
 import { ShareModal } from '@/components/share/ShareModal'
 import { SuiteFormModal } from '@/components/suites/SuiteFormModal'
 import { SuiteSettingsMenu } from '@/components/suites/SuiteSettingsMenu'
@@ -123,6 +124,13 @@ export function SuitePage() {
             {suite.suite_description || 'No description yet.'}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-ink-mute">
+            <EnvironmentBadge
+              suite={suite}
+              tests={allTests}
+              canPromote={editable}
+              readOnlyReason="View-only access: you can see the environment but not change it."
+              style={style}
+            />
             {role === 'owner' ? (
               <span className="inline-flex items-center gap-2">
                 <Avatar name={user.username} src={user.avatar_url} seed={user.user_id} size={22} />

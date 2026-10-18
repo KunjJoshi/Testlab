@@ -80,6 +80,7 @@ func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 	rowsHandler := &handlers.RowsHandler{DB: pool}
 	sharedHandler := &handlers.AccessHandler{DB: pool}
 	meHandler := &handlers.MeHandler{DB: pool}
+	environmentHandler := &handlers.EnvironmentHandler{DB: pool}
 
 	// -- current user --
 	mux.HandleFunc("GET /me", meHandler.GetMe)
@@ -90,6 +91,7 @@ func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 	mux.HandleFunc("GET /suites/{id}", suiteHandler.GetSuiteByID)
 	mux.HandleFunc("PATCH /suites/{id}", suiteHandler.UpdateSuiteByID)
 	mux.HandleFunc("DELETE /suites/{id}", suiteHandler.DeleteSuiteByID)
+	mux.HandleFunc("PATCH /suites/promote-environment/{id}", suiteHandler.PromoteSuiteEnvironment)
 
 	// -- rows --
 	mux.HandleFunc("POST /tests/write-test", rowsHandler.CreateNewTestRow)
@@ -104,4 +106,13 @@ func registerRoutes(mux *http.ServeMux, pool *pgxpool.Pool) {
 	mux.HandleFunc("PATCH /access/update-access", sharedHandler.UpdateUserAccess)
 	mux.HandleFunc("DELETE /access/remove-user", sharedHandler.RemoveUserAccess)
 	mux.HandleFunc("GET /access/search-users", sharedHandler.SearchUsers)
+
+	// -- Environment --
+	mux.HandleFunc("POST /environments", environmentHandler.CreateEnvironment)
+	mux.HandleFunc("GET /environments/{user_id}", environmentHandler.ListEnvironmentsByUser)
+	mux.HandleFunc("GET /environment/{id}", environmentHandler.GetEnvironmentByID)
+	mux.HandleFunc("PATCH /environments/reorder", environmentHandler.UpdateBulkEnvironments)
+	mux.HandleFunc("PATCH /environments/rename", environmentHandler.UpdateEnvironment)
+	mux.HandleFunc("DELETE /environments/{id}", environmentHandler.DeleteEnvironment)
+
 }

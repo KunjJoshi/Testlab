@@ -1,0 +1,1 @@
+ALTER TABLE test_suites ALTER COLUMN environment_id SET NOT NULL;

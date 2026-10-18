@@ -127,8 +127,15 @@ func (h *AuthHandler) exchangeAndUpsertUser(r *http.Request, code string) (int64
 		return 0, fmt.Errorf("failed to fetch github profile: %w", err)
 	}
 
+	tx, err := h.DB.Begin(r.Context())
+	if err != nil {
+		return 0, fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+	defer tx.Rollback(r.Context())
 	var userID int64
-	err = h.DB.QueryRow(r.Context(), `
+	var wasInserted bool
+	err = tx.QueryRow(r.Context(), `
 		INSERT INTO users (username, email, github_user_id, github_access_token, avatar_url)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (github_user_id) DO UPDATE
@@ -136,10 +143,20 @@ func (h *AuthHandler) exchangeAndUpsertUser(r *http.Request, code string) (int64
 		        avatar_url = EXCLUDED.avatar_url,
 		        username = EXCLUDED.username,
 		        updated_at = NOW()
-		RETURNING user_id
-	`, ghUser.Login, ghUser.Email, fmt.Sprint(ghUser.ID), token.AccessToken, ghUser.AvatarURL).Scan(&userID)
+		RETURNING user_id, (xmax=0) AS was_inserted
+	`, ghUser.Login, ghUser.Email, fmt.Sprint(ghUser.ID), token.AccessToken, ghUser.AvatarURL).Scan(&userID, &wasInserted)
 	if err != nil {
 		return 0, fmt.Errorf("failed to upsert user: %w", err)
+	}
+
+	if wasInserted {
+		if err := auth.AddDefaultEnvironments(r.Context(), tx, userID); err != nil {
+			return 0, fmt.Errorf("failed to seed default environments: %w", err)
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		return 0, fmt.Errorf("failed to commit user creation: %w", err)
 	}
 
 	return userID, nil
