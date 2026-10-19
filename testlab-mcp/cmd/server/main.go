@@ -61,4 +61,6 @@ func registerAllTools(s *server.MCPServer, c *client.Client) {
 	tools.RegisterListUsersWithAccessTool(s, c)
 	tools.RegisterUpdateAccessTool(s, c)
 	tools.RegisterRemoveAccessTool(s, c)
+	tools.RegisterPromoteSuiteTool(s, c)
+	tools.RegisterListEnvironmentTool(s, c)
 }

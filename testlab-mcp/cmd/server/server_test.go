@@ -126,9 +126,9 @@ func TestToolsList(t *testing.T) {
 
 	want := []string{
 		"bulk-import-test-rows", "create-test-row", "create-test-suite", "delete-suite",
-		"delete-test-row", "get-suite-by-id", "list-all-suites", "list-test-rows",
-		"list-users-with-access", "provide-access", "remove-access", "update-access",
-		"update-suite", "update-test-row",
+		"delete-test-row", "get-suite-by-id", "list-all-suites", "list-environments",
+		"list-test-rows", "list-users-with-access", "promote-suite", "provide-access",
+		"remove-access", "update-access", "update-suite", "update-test-row",
 	}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Errorf("tools = %v\nwant    %v", names, want)
